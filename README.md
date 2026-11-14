@@ -1,8 +1,12 @@
 # Tuner (clone clean-room, M1)
 
-Status: **ditulis, belum pernah dikompilasi atau dijalankan.** Dibuat di lingkungan tanpa Android SDK dan tanpa akses Maven.
+Status: **build dan tes unit lolos di GitHub Actions; belum pernah dijalankan di perangkat.**
 
-## Cara build pertama kali
+## Ambil APK tanpa Android Studio
+
+Tab **Actions** -> run terbaru -> bagian **Artifacts** -> `tuner-debug-apk` (zip berisi `app-debug.apk`).
+
+## Cara build lokal (opsional)
 
 1. Buka folder ini di Android Studio (Ladybug atau lebih baru). Android Studio akan membuat `local.properties` dan mengunduh dependensi.
 2. Versi di `gradle/libs.versions.toml` ditulis dari memori. Kalau sync gagal, naikkan/turunkan versi AGP, Kotlin, KSP, dan Compose BOM agar kompatibel.
