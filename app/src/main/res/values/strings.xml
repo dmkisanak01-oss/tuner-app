@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tuner</string>
+    <string name="back">Kembali</string>
+
+    <!-- S02 akses -->
+    <string name="privilege_title">Akses sistem</string>
+    <string name="privilege_intro">Untuk mengubah pengaturan game, app ini perlu menjalankan perintah sistem lewat Shizuku atau Root. Pilih salah satu.</string>
+    <string name="privilege_shizuku">Pakai Shizuku</string>
+    <string name="privilege_shizuku_desc">Tanpa root. Butuh app Shizuku yang sedang berjalan.</string>
+    <string name="privilege_root">Pakai Root</string>
+    <string name="privilege_root_desc">Butuh perangkat yang sudah di-root. Akan muncul permintaan izin su.</string>
+    <string name="state_unavailable">Belum tersedia di perangkat ini</string>
+    <string name="state_not_running">Terpasang tapi belum dijalankan</string>
+    <string name="state_needs_permission">Belum diberi izin</string>
+    <string name="state_connecting">Sedang menyambung…</string>
+    <string name="state_ready">Siap dipakai</string>
+    <string name="privilege_grant">Beri izin</string>
+    <string name="privilege_continue">Lanjut</string>
+
+    <!-- S03 daftar game -->
+    <string name="games_title">Game</string>
+    <string name="games_empty">Belum ada game yang terdeteksi.</string>
+    <string name="games_empty_hint">Pasang game, lalu buka ulang app ini.</string>
+    <string name="games_banner_none">Belum ada akses sistem. Setelan belum bisa diterapkan.</string>
+    <string name="games_banner_action">Atur akses</string>
+    <string name="games_tuned">Aktif</string>
+    <string name="games_default">Bawaan</string>
+
+    <!-- S04 detail -->
+    <string name="detail_game_mode">Mode game</string>
+    <string name="mode_standard">Standar</string>
+    <string name="mode_performance">Performa</string>
+    <string name="mode_battery">Hemat baterai</string>
+    <string name="detail_apply">Terapkan</string>
+    <string name="detail_reset">Kembalikan ke bawaan</string>
+    <string name="detail_need_access">Butuh akses sistem untuk menerapkan.</string>
+    <string name="detail_last_log">Perintah terakhir</string>
+    <string name="detail_no_log">Belum ada riwayat.</string>
+    <string name="msg_ok">Berhasil diterapkan.</string>
+    <string name="msg_partial">Diterapkan, tapi hasilnya belum bisa dipastikan.</string>
+    <string name="msg_failed">Gagal menerapkan.</string>
+    <string name="msg_reset_ok">Dikembalikan ke bawaan.</string>
+    <string name="msg_invalid">Game tidak dikenali.</string>
+</resources>
