@@ -64,3 +64,23 @@ class ModeParserTest {
         assertThrows(IllegalArgumentException::class.java) { GameCommands.setCustom("bad pkg", "disable", 0) }
     }
 }
+
+class RendererTest {
+    @Test fun parsesPropValues() {
+        assertEquals(Renderer.SKIAVK, Renderer.fromProp("skiavk\n"))
+        assertEquals(Renderer.SKIAGL, Renderer.fromProp(" skiagl "))
+        assertEquals(Renderer.DEFAULT, Renderer.fromProp(""))
+        assertEquals(Renderer.DEFAULT, Renderer.fromProp("whatever"))
+    }
+
+    @Test fun buildsSafeCommands() {
+        assertEquals(listOf("setprop", "debug.hwui.renderer", "skiavk"), RendererCommands.set(Renderer.SKIAVK))
+        SafeArgs.check(RendererCommands.set(Renderer.DEFAULT))
+        assertThrows(IllegalArgumentException::class.java) { RendererCommands.gfxinfo("x; id") }
+    }
+
+    @Test fun parsesPipelineLine() {
+        assertEquals("Skia (Vulkan)", PipelineParser.parse("Stats since: 1\nPipeline=Skia (Vulkan)\nTotal frames"))
+        assertEquals(null, PipelineParser.parse("no pipeline here"))
+    }
+}

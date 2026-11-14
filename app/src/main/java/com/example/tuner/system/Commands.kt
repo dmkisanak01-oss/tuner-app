@@ -24,6 +24,33 @@ object ModeParser {
     }
 }
 
+/** Renderer HWUI global (`debug.hwui.renderer`). Hanya memengaruhi app yang merender lewat HWUI; hilang saat reboot. */
+enum class Renderer(val propValue: String) {
+    DEFAULT("default"),
+    SKIAGL("skiagl"),
+    SKIAVK("skiavk");
+
+    companion object {
+        fun fromProp(value: String): Renderer = entries.find { it.propValue == value.trim() } ?: DEFAULT
+    }
+}
+
+object PipelineParser {
+    private val LINE = Regex("Pipeline=([^\\r\\n]+)")
+
+    /** Contoh baris dari `dumpsys gfxinfo <pkg>`: "Pipeline=Skia (OpenGL)". */
+    fun parse(output: String): String? = LINE.find(output)?.groupValues?.get(1)?.trim()
+}
+
+object RendererCommands {
+    fun get(): List<String> = listOf("getprop", "debug.hwui.renderer")
+    fun set(renderer: Renderer): List<String> = listOf("setprop", "debug.hwui.renderer", renderer.propValue)
+    fun gfxinfo(pkg: String): List<String> {
+        require(PackageName.isValid(pkg)) { "Nama paket tidak valid" }
+        return listOf("dumpsys", "gfxinfo", pkg)
+    }
+}
+
 object PackageName {
     private val REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
     fun isValid(value: String): Boolean = value.length <= 255 && REGEX.matches(value)

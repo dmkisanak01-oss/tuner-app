@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -89,7 +90,7 @@ class GamesViewModel(private val c: AppContainer) : ViewModel() {
 
 /** S03: daftar game. State: memuat (skeleton), kosong, tidak ada hasil pencarian, terisi, tanpa akses. */
 @Composable
-fun GamesScreen(onOpenGame: (String) -> Unit, onSetupAccess: () -> Unit) {
+fun GamesScreen(onOpenGame: (String) -> Unit, onSetupAccess: () -> Unit, onOpenSettings: () -> Unit) {
     val c = LocalContainer.current
     val vm: GamesViewModel = viewModel(factory = viewModelFactory { initializer { GamesViewModel(c) } })
     val rows by vm.rows.collectAsStateWithLifecycle()
@@ -99,12 +100,20 @@ fun GamesScreen(onOpenGame: (String) -> Unit, onSetupAccess: () -> Unit) {
 
     Scaffold { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Text(
-                stringResource(R.string.games_title),
-                style = AppType.xl,
-                color = AppTheme.colors.text,
-                modifier = Modifier.padding(start = AppSpace.s16, end = AppSpace.s16, top = AppSpace.s16),
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(start = AppSpace.s16, end = AppSpace.s8, top = AppSpace.s16),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.games_title),
+                    style = AppType.xl,
+                    color = AppTheme.colors.text,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.open_settings))
+                }
+            }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = AppSpace.s16, vertical = AppSpace.s8),
                 verticalAlignment = Alignment.CenterVertically,

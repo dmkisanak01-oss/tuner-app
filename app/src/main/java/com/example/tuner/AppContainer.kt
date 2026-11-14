@@ -17,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 /** DI manual untuk M1 (Hilt belum dipakai: mengurangi konfigurasi build yang belum bisa diuji). */
 class AppContainer(context: Context) {
     private val app = context.applicationContext
+    val packageName: String = app.packageName
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val db: TunerDatabase = Room.databaseBuilder(app, TunerDatabase::class.java, "tuner.db").build()

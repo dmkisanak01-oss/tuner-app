@@ -11,7 +11,10 @@ import com.example.tuner.system.GameMode
 import com.example.tuner.system.ModeInfo
 import com.example.tuner.system.ModeParser
 import com.example.tuner.system.PackageName
+import com.example.tuner.system.PipelineParser
 import com.example.tuner.system.PrivilegedExecutor
+import com.example.tuner.system.Renderer
+import com.example.tuner.system.RendererCommands
 import com.example.tuner.system.SystemProps
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -104,6 +107,43 @@ class TuningService(
         }
     }
 
+    suspend fun readRenderer(): Renderer? {
+        if (executor.state.value != BackendState.READY) return null
+        val r = mutex.withLock { executor.exec(RendererCommands.get()) }
+        return if (r.ok) Renderer.fromProp(r.output) else null
+    }
+
+    /** Pipeline render asli sebuah app yang sedang berjalan, dari `dumpsys gfxinfo`. null kalau tidak terbaca. */
+    suspend fun readPipeline(pkg: String): String? {
+        if (!PackageName.isValid(pkg) || executor.state.value != BackendState.READY) return null
+        val r = mutex.withLock { executor.exec(RendererCommands.gfxinfo(pkg)) }
+        return if (r.ok) PipelineParser.parse(r.output) else null
+    }
+
+    /** Renderer HWUI global. Dibaca balik; efek ke app hanya setelah app dimulai ulang. */
+    suspend fun applyRenderer(renderer: Renderer): ApplyOutcome {
+        if (executor.state.value != BackendState.READY) return ApplyOutcome.NoPrivilege
+        return mutex.withLock {
+            val set = runSystem("SET_RENDERER", RendererCommands.set(renderer))
+            if (!set.ok) return@withLock ApplyOutcome.Failed(set.output.ifBlank { "exit ${set.exitCode}" })
+            val read = runSystem("READ_BACK", RendererCommands.get())
+            if (read.ok && Renderer.fromProp(read.output) == renderer) ApplyOutcome.Ok
+            else ApplyOutcome.Partial(read.output.ifBlank { "exit ${read.exitCode}" })
+        }
+    }
+
+    /** Kembalikan semua game yang sedang di-tune dan renderer ke bawaan. */
+    suspend fun resetAll(): ApplyOutcome {
+        if (executor.state.value != BackendState.READY) return ApplyOutcome.NoPrivilege
+        var failed = 0
+        for (pkg in db.gameProfileDao().tunedPackages()) {
+            if (resetGame(pkg) is ApplyOutcome.Failed) failed++
+        }
+        val renderer = applyRenderer(Renderer.DEFAULT)
+        return if (failed == 0 && renderer !is ApplyOutcome.Failed) ApplyOutcome.Ok
+        else ApplyOutcome.Partial("$failed game gagal dikembalikan")
+    }
+
     /** Menjalankan perintah baca-saja dan mengembalikan teks untuk ditampilkan. Tidak mengubah setelan apa pun. */
     suspend fun diagnose(pkg: String): String {
         if (!PackageName.isValid(pkg) || !db.gameEntryDao().exists(pkg)) return "Game tidak dikenali"
@@ -133,6 +173,24 @@ class TuningService(
             ApplyLogEntity(
                 scope = "GAME",
                 packageName = pkg,
+                action = action,
+                command = argv.joinToString(" "),
+                backend = result.backend?.name ?: "NONE",
+                exitCode = result.exitCode,
+                output = result.output.take(MAX_LOG_CHARS),
+                createdAt = clock(),
+            ),
+        )
+        db.applyLogDao().prune(MAX_LOG_ROWS)
+        return result
+    }
+
+    private suspend fun runSystem(action: String, argv: List<String>): ExecResult {
+        val result = executor.exec(argv)
+        db.applyLogDao().insert(
+            ApplyLogEntity(
+                scope = "SYSTEM",
+                packageName = null,
                 action = action,
                 command = argv.joinToString(" "),
                 backend = result.backend?.name ?: "NONE",

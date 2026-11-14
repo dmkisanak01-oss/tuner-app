@@ -3,6 +3,7 @@ package com.example.tuner.data.prefs
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -18,6 +19,15 @@ class SettingsStore(private val context: Context) {
 
     val privilegeMode: Flow<PrivilegeMode> = context.dataStore.data.map { prefs ->
         prefs[keyMode]?.let { runCatching { PrivilegeMode.valueOf(it) }.getOrNull() } ?: PrivilegeMode.NONE
+    }
+
+    private val keyOnboarding = booleanPreferencesKey("onboarding_done")
+
+    /** null tidak pernah muncul dari flow ini; false sampai user menyetujui. */
+    val onboardingDone: Flow<Boolean> = context.dataStore.data.map { it[keyOnboarding] ?: false }
+
+    suspend fun setOnboardingDone() {
+        context.dataStore.edit { it[keyOnboarding] = true }
     }
 
     suspend fun setPrivilegeMode(mode: PrivilegeMode) {

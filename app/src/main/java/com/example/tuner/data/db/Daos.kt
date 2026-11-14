@@ -48,6 +48,9 @@ interface GameProfileDao {
     @Query("SELECT * FROM game_profile WHERE package_name = :pkg")
     fun observe(pkg: String): Flow<GameProfileEntity?>
 
+    @Query("SELECT package_name FROM game_profile WHERE tune_enabled = 1")
+    suspend fun tunedPackages(): List<String>
+
     @Upsert
     suspend fun upsert(profile: GameProfileEntity)
 }
