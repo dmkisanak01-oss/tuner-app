@@ -17,6 +17,16 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        // Keystore debug publik dan tetap, hanya agar update APK dari CI bisa menimpa versi sebelumnya. Bukan rahasia.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildFeatures {
         compose = true
         aidl = true // IShellService untuk Shizuku UserService

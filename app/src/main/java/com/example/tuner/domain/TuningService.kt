@@ -9,6 +9,7 @@ import com.example.tuner.system.GameCommands
 import com.example.tuner.system.GameMode
 import com.example.tuner.system.PackageName
 import com.example.tuner.system.PrivilegedExecutor
+import com.example.tuner.system.SystemProps
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -56,6 +57,27 @@ class TuningService(
             }
             saveProfile(pkg, status = "OK") { it.copy(tuneEnabled = false, gameMode = GameMode.STANDARD) }
             ApplyOutcome.Ok
+        }
+    }
+
+    /** Menjalankan perintah baca-saja dan mengembalikan teks untuk ditampilkan. Tidak mengubah setelan apa pun. */
+    suspend fun diagnose(pkg: String): String {
+        if (!PackageName.isValid(pkg) || !db.gameEntryDao().exists(pkg)) return "Game tidak dikenali"
+        if (executor.state.value != BackendState.READY) return "Butuh akses sistem"
+        val commands = listOf(
+            SystemProps.get("ro.product.manufacturer"),
+            SystemProps.get("ro.product.model"),
+            SystemProps.get("ro.build.version.release"),
+            SystemProps.get("ro.build.version.sdk"),
+            GameCommands.help(),
+            GameCommands.listModes(pkg),
+            GameCommands.listConfigs(pkg),
+        )
+        return mutex.withLock {
+            commands.joinToString("\n\n") { argv ->
+                val r = executor.exec(argv)
+                "$ ${argv.joinToString(" ")}\n[exit ${r.exitCode}]\n${r.output.trim().take(1_500)}"
+            }
         }
     }
 

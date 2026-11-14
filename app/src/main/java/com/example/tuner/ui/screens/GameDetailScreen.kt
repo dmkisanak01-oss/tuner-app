@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,12 +60,14 @@ class GameDetailViewModel(private val c: AppContainer, private val pkg: String) 
     private val picked = MutableStateFlow<GameMode?>(null)
     private val _applying = MutableStateFlow(false)
     private val _message = MutableStateFlow<UiMessage?>(null)
+    private val _diagnosis = MutableStateFlow<String?>(null)
 
     val label: StateFlow<String?> =
         c.db.gameEntryDao().observeLabel(pkg).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val backend: StateFlow<BackendState> = c.executor.state
     val applying: StateFlow<Boolean> = _applying
     val message: StateFlow<UiMessage?> = _message
+    val diagnosis: StateFlow<String?> = _diagnosis
     val lastLog: StateFlow<ApplyLogEntity?> =
         c.db.applyLogDao().observeLast(pkg).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -83,6 +86,15 @@ class GameDetailViewModel(private val c: AppContainer, private val pkg: String) 
         outcome
     }
 
+    fun diagnose() {
+        if (_applying.value) return
+        viewModelScope.launch {
+            _applying.value = true
+            _diagnosis.value = c.tuning.diagnose(pkg)
+            _applying.value = false
+        }
+    }
+
     private fun execute(block: suspend () -> ApplyOutcome) {
         if (_applying.value) return // cegah tap ganda
         viewModelScope.launch {
@@ -92,7 +104,10 @@ class GameDetailViewModel(private val c: AppContainer, private val pkg: String) 
             _message.value = when (outcome) {
                 ApplyOutcome.Ok -> UiMessage(R.string.msg_ok)
                 is ApplyOutcome.Partial -> UiMessage(R.string.msg_partial, outcome.detail)
-                is ApplyOutcome.Failed -> UiMessage(R.string.msg_failed, outcome.detail, isError = true)
+                is ApplyOutcome.Failed ->
+                    if (outcome.detail.contains("not supported", ignoreCase = true))
+                        UiMessage(R.string.msg_unsupported, outcome.detail, isError = true)
+                    else UiMessage(R.string.msg_failed, outcome.detail, isError = true)
                 ApplyOutcome.NoPrivilege -> UiMessage(R.string.detail_need_access, isError = true)
                 ApplyOutcome.InvalidPackage -> UiMessage(R.string.msg_invalid, isError = true)
             }
@@ -111,6 +126,7 @@ fun GameDetailScreen(pkg: String, onBack: () -> Unit, onSetupAccess: () -> Unit)
     val backend by vm.backend.collectAsStateWithLifecycle()
     val applying by vm.applying.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
+    val diagnosis by vm.diagnosis.collectAsStateWithLifecycle()
     val selected by vm.selectedMode.collectAsStateWithLifecycle()
     val lastLog by vm.lastLog.collectAsStateWithLifecycle()
     val ready = backend == BackendState.READY
@@ -162,6 +178,15 @@ fun GameDetailScreen(pkg: String, onBack: () -> Unit, onSetupAccess: () -> Unit)
                     style = AppType.sm,
                     color = if (m.isError) AppTheme.colors.danger else AppTheme.colors.text,
                 )
+            }
+
+            OutlinedButton(onClick = vm::diagnose, enabled = ready && !applying, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.detail_diagnose))
+            }
+            diagnosis?.let {
+                SelectionContainer {
+                    Text(it, style = AppType.mono, color = AppTheme.colors.text, modifier = Modifier.fillMaxWidth())
+                }
             }
 
             Text(stringResource(R.string.detail_last_log), style = AppType.lg, color = AppTheme.colors.text)

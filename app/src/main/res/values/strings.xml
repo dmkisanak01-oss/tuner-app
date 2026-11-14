@@ -41,5 +41,7 @@
     <string name="msg_partial">Diterapkan, tapi hasilnya belum bisa dipastikan.</string>
     <string name="msg_failed">Gagal menerapkan.</string>
     <string name="msg_reset_ok">Dikembalikan ke bawaan.</string>
+    <string name="msg_unsupported">Game ini tidak mendukung mode itu di HP kamu (game harus mendukungnya). Tap Cek dukungan untuk melihat detailnya.</string>
+    <string name="detail_diagnose">Cek dukungan</string>
     <string name="msg_invalid">Game tidak dikenali.</string>
 </resources>
