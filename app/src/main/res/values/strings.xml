@@ -32,6 +32,16 @@
     <string name="mode_standard">Standar</string>
     <string name="mode_performance">Performa</string>
     <string name="mode_battery">Hemat baterai</string>
+    <string name="mode_custom">Kustom (resolusi dan FPS)</string>
+    <string name="mode_unsupported">Tidak didukung game ini</string>
+    <string name="custom_hint">Menurunkan resolusi dan membatasi FPS lewat Android Game Mode. Efeknya tergantung game dan ROM, jadi cek sendiri hasilnya.</string>
+    <string name="graphics_title">Kualitas grafis</string>
+    <string name="gfx_high">Tinggi (tanpa penurunan)</string>
+    <string name="gfx_medium">Sedang</string>
+    <string name="gfx_low">Rendah</string>
+    <string name="gfx_ultra">Sangat rendah</string>
+    <string name="fps_title">Batas FPS</string>
+    <string name="fps_default">Bawaan</string>
     <string name="detail_apply">Terapkan</string>
     <string name="detail_reset">Kembalikan ke bawaan</string>
     <string name="detail_need_access">Butuh akses sistem untuk menerapkan.</string>

@@ -5,6 +5,23 @@ enum class GameMode(val cmdValue: String) {
     STANDARD("standard"),
     PERFORMANCE("performance"),
     BATTERY("battery"),
+    CUSTOM("custom"), // downscale + FPS lewat `cmd game set`
+}
+
+/** Hasil `cmd game list-modes`: mode aktif dan mode yang diumumkan game. */
+data class ModeInfo(val current: GameMode?, val available: Set<GameMode>)
+
+object ModeParser {
+    private val CURRENT = Regex("current mode:\\s*([a-z]+)")
+    private val AVAILABLE = Regex("available game modes:\\s*\\[([^\\]]*)\\]")
+
+    /** Contoh nyata (Android 15, Xiaomi): "com.x current mode: standard, available game modes: [standard,custom]". */
+    fun parse(output: String): ModeInfo? {
+        val available = AVAILABLE.find(output)?.groupValues?.get(1) ?: return null
+        val modes = available.split(',').mapNotNull { name -> GameMode.entries.find { it.cmdValue == name.trim() } }.toSet()
+        val current = CURRENT.find(output)?.groupValues?.get(1)?.let { n -> GameMode.entries.find { it.cmdValue == n } }
+        return ModeInfo(current, modes)
+    }
 }
 
 object PackageName {
@@ -35,6 +52,17 @@ object GameCommands {
 
     /** Perintah baca-saja untuk diagnosa. Sintaks asli ROM dilihat dari keluaran help. */
     fun help(): List<String> = listOf("cmd", "game", "help")
+
+    /** Nilai downscale yang diterima `cmd game set` di ROM (dari keluaran `cmd game help`). */
+    val DOWNSCALE_VALUES: List<String> = listOf("disable") +
+        listOf("0.3", "0.35", "0.4", "0.45", "0.5", "0.55", "0.6", "0.65", "0.7", "0.75", "0.8", "0.85", "0.9")
+
+    /** `downscale` harus salah satu nilai di atas. `fps` 0 = bawaan. */
+    fun setCustom(pkg: String, downscale: String, fps: Int): List<String> {
+        require(downscale in DOWNSCALE_VALUES) { "Nilai downscale tidak valid" }
+        require(fps in 0..240) { "FPS di luar rentang" }
+        return listOf("cmd", "game", "set", "--downscale", downscale, "--fps", fps.toString(), valid(pkg))
+    }
 
     fun listModes(pkg: String): List<String> = listOf("cmd", "game", "list-modes", valid(pkg))
 

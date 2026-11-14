@@ -10,6 +10,7 @@ fun GameMode.labelRes(): Int = when (this) {
     GameMode.STANDARD -> R.string.mode_standard
     GameMode.PERFORMANCE -> R.string.mode_performance
     GameMode.BATTERY -> R.string.mode_battery
+    GameMode.CUSTOM -> R.string.mode_custom
 }
 
 @StringRes

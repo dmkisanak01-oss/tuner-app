@@ -2,16 +2,27 @@ package com.example.tuner.domain
 
 import com.example.tuner.data.db.ApplyLogEntity
 import com.example.tuner.data.db.GameProfileEntity
+import com.example.tuner.data.db.GraphicsMode
 import com.example.tuner.data.db.TunerDatabase
 import com.example.tuner.system.BackendState
 import com.example.tuner.system.ExecResult
 import com.example.tuner.system.GameCommands
 import com.example.tuner.system.GameMode
+import com.example.tuner.system.ModeInfo
+import com.example.tuner.system.ModeParser
 import com.example.tuner.system.PackageName
 import com.example.tuner.system.PrivilegedExecutor
 import com.example.tuner.system.SystemProps
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+
+/** Preset grafis -> argumen --downscale. Nilai awal tebakan, ukur di perangkat. HIGH = tanpa penurunan resolusi. */
+fun GraphicsMode.downscaleArg(): String = when (this) {
+    GraphicsMode.HIGH -> "disable"
+    GraphicsMode.MEDIUM -> "0.85"
+    GraphicsMode.LOW -> "0.7"
+    GraphicsMode.ULTRA_LOW -> "0.5"
+}
 
 sealed interface ApplyOutcome {
     data object Ok : ApplyOutcome
@@ -29,6 +40,37 @@ class TuningService(
 ) {
     private val mutex = Mutex()
 
+    /** Mode yang diumumkan game + mode aktif. null kalau tidak bisa dibaca. */
+    suspend fun readModes(pkg: String): ModeInfo? {
+        if (!PackageName.isValid(pkg) || executor.state.value != BackendState.READY) return null
+        val r = mutex.withLock { executor.exec(GameCommands.listModes(pkg)) }
+        return if (r.ok) ModeParser.parse(r.output) else null
+    }
+
+    /** Mode Kustom: turunkan resolusi dan batasi FPS. Hasil dibaca balik lewat list-modes. */
+    suspend fun applyCustom(pkg: String, graphics: GraphicsMode, fps: Int): ApplyOutcome {
+        if (!PackageName.isValid(pkg) || !db.gameEntryDao().exists(pkg)) return ApplyOutcome.InvalidPackage
+        if (executor.state.value != BackendState.READY) return ApplyOutcome.NoPrivilege
+        return mutex.withLock {
+            val ratio = graphics.downscaleArg()
+            val set = run(pkg, "SET_CUSTOM", GameCommands.setCustom(pkg, ratio, fps))
+            if (!set.ok) {
+                saveProfile(pkg, status = "FAILED") { it }
+                return@withLock ApplyOutcome.Failed(set.output.ifBlank { "exit ${set.exitCode}" })
+            }
+            val read = run(pkg, "READ_BACK", GameCommands.listModes(pkg))
+            val info = if (read.ok) ModeParser.parse(read.output) else null
+            val confirmed = info?.current == GameMode.CUSTOM
+            saveProfile(pkg, status = if (confirmed) "OK" else "PARTIAL") {
+                it.copy(
+                    tuneEnabled = true, gameMode = GameMode.CUSTOM, graphicsMode = graphics,
+                    downscaleRatio = ratio.toFloatOrNull(), fpsCap = fps.takeIf { f -> f > 0 },
+                )
+            }
+            if (confirmed) ApplyOutcome.Ok else ApplyOutcome.Partial(read.output.ifBlank { "exit ${read.exitCode}" })
+        }
+    }
+
     suspend fun applyGameMode(pkg: String, mode: GameMode): ApplyOutcome {
         if (!PackageName.isValid(pkg) || !db.gameEntryDao().exists(pkg)) return ApplyOutcome.InvalidPackage
         if (executor.state.value != BackendState.READY) return ApplyOutcome.NoPrivilege
@@ -38,11 +80,10 @@ class TuningService(
                 saveProfile(pkg, status = "FAILED") { it }
                 return@withLock ApplyOutcome.Failed(set.output.ifBlank { "exit ${set.exitCode}" })
             }
-            // Baca balik. Format keluaran list-configs belum diverifikasi, jadi hanya exit code yang dicek.
-            val read = run(pkg, "READ_BACK", GameCommands.listConfigs(pkg))
-            val status = if (read.ok) "OK" else "PARTIAL"
-            saveProfile(pkg, status = status) { it.copy(tuneEnabled = true, gameMode = mode) }
-            if (read.ok) ApplyOutcome.Ok else ApplyOutcome.Partial(read.output.ifBlank { "exit ${read.exitCode}" })
+            val read = run(pkg, "READ_BACK", GameCommands.listModes(pkg))
+            val confirmed = read.ok && ModeParser.parse(read.output)?.current == mode
+            saveProfile(pkg, status = if (confirmed) "OK" else "PARTIAL") { it.copy(tuneEnabled = true, gameMode = mode) }
+            if (confirmed) ApplyOutcome.Ok else ApplyOutcome.Partial(read.output.ifBlank { "exit ${read.exitCode}" })
         }
     }
 
@@ -50,13 +91,16 @@ class TuningService(
         if (!PackageName.isValid(pkg) || !db.gameEntryDao().exists(pkg)) return ApplyOutcome.InvalidPackage
         if (executor.state.value != BackendState.READY) return ApplyOutcome.NoPrivilege
         return mutex.withLock {
-            val r = run(pkg, "RESET", GameCommands.reset(pkg))
-            if (!r.ok) {
+            val std = run(pkg, "SET_STANDARD", GameCommands.setMode(pkg, GameMode.STANDARD))
+            if (!std.ok) {
                 saveProfile(pkg, status = "FAILED") { it }
-                return@withLock ApplyOutcome.Failed(r.output.ifBlank { "exit ${r.exitCode}" })
+                return@withLock ApplyOutcome.Failed(std.output.ifBlank { "exit ${std.exitCode}" })
             }
-            saveProfile(pkg, status = "OK") { it.copy(tuneEnabled = false, gameMode = GameMode.STANDARD) }
-            ApplyOutcome.Ok
+            val r = run(pkg, "RESET", GameCommands.reset(pkg))
+            saveProfile(pkg, status = if (r.ok) "OK" else "PARTIAL") {
+                it.copy(tuneEnabled = false, gameMode = GameMode.STANDARD, graphicsMode = GraphicsMode.HIGH, downscaleRatio = null, fpsCap = null)
+            }
+            if (r.ok) ApplyOutcome.Ok else ApplyOutcome.Partial(r.output.ifBlank { "exit ${r.exitCode}" })
         }
     }
 
