@@ -74,10 +74,12 @@ class TuningService(
             GameCommands.listConfigs(pkg),
         )
         return mutex.withLock {
-            commands.joinToString("\n\n") { argv ->
+            val blocks = mutableListOf<String>()
+            for (argv in commands) {
                 val r = executor.exec(argv)
-                "$ ${argv.joinToString(" ")}\n[exit ${r.exitCode}]\n${r.output.trim().take(1_500)}"
+                blocks += "$ ${argv.joinToString(" ")}\n[exit ${r.exitCode}]\n${r.output.trim().take(1_500)}"
             }
+            blocks.joinToString("\n\n")
         }
     }
 
