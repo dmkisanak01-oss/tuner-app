@@ -86,5 +86,7 @@ data class GameRow(
     val isPinned: Boolean,
     val tuneEnabled: Boolean?,
     val gameMode: GameMode?,
+    val graphicsMode: GraphicsMode?,
+    val fpsCap: Int?,
     val lastApplyStatus: String?,
 )

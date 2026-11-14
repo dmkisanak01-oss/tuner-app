@@ -2,6 +2,18 @@ package com.example.tuner.ui.screens
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.example.tuner.ui.AppIcon
+import com.example.tuner.ui.RadioRow
+import com.example.tuner.ui.SectionCard
+import com.example.tuner.ui.StatusPill
+import com.example.tuner.ui.percentLabel
+import com.example.tuner.ui.shortLabelRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,7 +22,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -23,7 +34,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,14 +72,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class UiMessage(@StringRes val res: Int, val detail: String? = null, val isError: Boolean = false)
-
-@StringRes
-private fun GraphicsMode.labelRes(): Int = when (this) {
-    GraphicsMode.HIGH -> R.string.gfx_high
-    GraphicsMode.MEDIUM -> R.string.gfx_medium
-    GraphicsMode.LOW -> R.string.gfx_low
-    GraphicsMode.ULTRA_LOW -> R.string.gfx_ultra
-}
 
 private val FPS_CHOICES = listOf(0, 30, 60, 90)
 
@@ -166,7 +168,7 @@ class GameDetailViewModel(private val c: AppContainer, private val pkg: String) 
     }
 }
 
-/** S04: mode game (hanya yang didukung game), plus resolusi dan FPS untuk mode Kustom. */
+/** S04: header game, mode yang didukung, opsi Kustom (resolusi + FPS), tombol aksi tetap di bawah. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameDetailScreen(pkg: String, onBack: () -> Unit, onSetupAccess: () -> Unit) {
@@ -184,11 +186,12 @@ fun GameDetailScreen(pkg: String, onBack: () -> Unit, onSetupAccess: () -> Unit)
     val lastLog by vm.lastLog.collectAsStateWithLifecycle()
     val ready = backend == BackendState.READY
     val selectedSupported = modes?.available?.contains(selected) ?: true
+    var advanced by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(label ?: pkg, maxLines = 1) },
+                title = { Text(stringResource(R.string.detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -196,116 +199,134 @@ fun GameDetailScreen(pkg: String, onBack: () -> Unit, onSetupAccess: () -> Unit)
                 },
             )
         },
+        bottomBar = {
+            Row(
+                Modifier.fillMaxWidth().background(AppTheme.colors.bg).navigationBarsPadding().padding(AppSpace.s16),
+                horizontalArrangement = Arrangement.spacedBy(AppSpace.s12),
+            ) {
+                OutlinedButton(
+                    onClick = vm::resetToDefault,
+                    enabled = ready && !applying,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.detail_reset_short)) }
+                Button(
+                    onClick = vm::applySelected,
+                    enabled = ready && !applying && selectedSupported,
+                    modifier = Modifier.weight(1.4f).heightIn(min = 48.dp),
+                ) {
+                    if (applying) CircularProgressIndicator(Modifier.size(20.dp).padding(end = AppSpace.s8), strokeWidth = 2.dp)
+                    Text(stringResource(R.string.detail_apply))
+                }
+            }
+        },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(AppSpace.s16).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(AppSpace.s16),
             verticalArrangement = Arrangement.spacedBy(AppSpace.s16),
         ) {
-            Text(stringResource(R.string.detail_game_mode), style = AppType.lg, color = AppTheme.colors.text)
-            Column(Modifier.selectableGroup()) {
-                GameMode.entries.forEach { mode ->
-                    val supported = modes?.available?.contains(mode) ?: true
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(
-                            selected = mode == selected,
-                            enabled = supported && !applying,
-                            role = Role.RadioButton,
-                            onClick = { vm.selectMode(mode) },
-                        ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = mode == selected, onClick = null, enabled = supported && !applying)
-                        Column(Modifier.padding(start = AppSpace.s12)) {
-                            Text(
-                                stringResource(mode.labelRes()),
-                                style = AppType.base,
-                                color = if (supported) AppTheme.colors.text else AppTheme.colors.textMuted,
-                            )
-                            if (!supported) {
-                                Text(stringResource(R.string.mode_unsupported), style = AppType.xs, color = AppTheme.colors.textMuted)
-                            }
-                        }
-                    }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpace.s16)) {
+                AppIcon(pkg, 56.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpace.s4)) {
+                    Text(label ?: pkg, style = AppType.lg, color = AppTheme.colors.text, maxLines = 2)
+                    Text(pkg, style = AppType.xs, color = AppTheme.colors.textMuted, maxLines = 1)
+                }
+            }
+            modes?.current?.let { cur ->
+                StatusPill(
+                    text = stringResource(R.string.detail_active_mode, stringResource(cur.shortLabelRes())),
+                    dot = if (cur == GameMode.STANDARD) AppTheme.colors.textMuted else AppTheme.colors.success,
+                )
+            }
+
+            if (!ready) {
+                SectionCard {
+                    Text(stringResource(R.string.detail_need_access), style = AppType.base, color = AppTheme.colors.text)
+                    TextButton(onClick = onSetupAccess) { Text(stringResource(R.string.games_banner_action)) }
                 }
             }
 
-            if (selected == GameMode.CUSTOM) {
-                Text(stringResource(R.string.custom_hint), style = AppType.sm, color = AppTheme.colors.textMuted)
-
-                Text(stringResource(R.string.graphics_title), style = AppType.lg, color = AppTheme.colors.text)
+            SectionCard {
+                Text(stringResource(R.string.detail_game_mode), style = AppType.lg, color = AppTheme.colors.text)
                 Column(Modifier.selectableGroup()) {
-                    GraphicsMode.entries.forEach { g ->
-                        Row(
-                            Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(
-                                selected = g == graphics,
-                                enabled = !applying,
-                                role = Role.RadioButton,
-                                onClick = { vm.selectGraphics(g) },
-                            ),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = g == graphics, onClick = null, enabled = !applying)
-                            Text(stringResource(g.labelRes()), style = AppType.base, color = AppTheme.colors.text, modifier = Modifier.padding(start = AppSpace.s12))
-                        }
-                    }
-                }
-
-                Text(stringResource(R.string.fps_title), style = AppType.lg, color = AppTheme.colors.text)
-                Row(horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)) {
-                    FPS_CHOICES.forEach { value ->
-                        FilterChip(
-                            selected = value == fps,
-                            onClick = { vm.selectFps(value) },
-                            enabled = !applying,
-                            label = { Text(if (value == 0) stringResource(R.string.fps_default) else value.toString()) },
+                    GameMode.entries.forEach { mode ->
+                        val supported = modes?.available?.contains(mode) ?: true
+                        RadioRow(
+                            selected = mode == selected,
+                            enabled = supported && !applying,
+                            title = stringResource(mode.labelRes()),
+                            subtitle = if (supported) null else stringResource(R.string.mode_unsupported),
+                            onClick = { vm.selectMode(mode) },
                         )
                     }
                 }
             }
 
-            if (!ready) {
-                Text(stringResource(R.string.detail_need_access), style = AppType.sm, color = AppTheme.colors.text)
-                TextButton(onClick = onSetupAccess) { Text(stringResource(R.string.games_banner_action)) }
-            }
-
-            Button(
-                onClick = vm::applySelected,
-                enabled = ready && !applying && selectedSupported,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (applying) CircularProgressIndicator(Modifier.size(20.dp).padding(end = AppSpace.s8), strokeWidth = 2.dp)
-                Text(stringResource(R.string.detail_apply))
-            }
-            OutlinedButton(onClick = vm::resetToDefault, enabled = ready && !applying, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.detail_reset))
-            }
-
-            message?.let { m ->
-                Text(
-                    stringResource(m.res) + (m.detail?.let { "\n$it" } ?: ""),
-                    style = AppType.sm,
-                    color = if (m.isError) AppTheme.colors.danger else AppTheme.colors.text,
-                )
-            }
-
-            OutlinedButton(onClick = vm::diagnose, enabled = ready && !applying, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.detail_diagnose))
-            }
-            diagnosis?.let {
-                SelectionContainer {
-                    Text(it, style = AppType.mono, color = AppTheme.colors.text, modifier = Modifier.fillMaxWidth())
+            if (selected == GameMode.CUSTOM) {
+                SectionCard {
+                    Text(stringResource(R.string.graphics_title), style = AppType.lg, color = AppTheme.colors.text)
+                    Text(stringResource(R.string.custom_hint), style = AppType.sm, color = AppTheme.colors.textMuted)
+                    Column(Modifier.selectableGroup()) {
+                        GraphicsMode.entries.forEach { g ->
+                            RadioRow(
+                                selected = g == graphics,
+                                enabled = !applying,
+                                title = stringResource(g.labelRes()),
+                                trailing = g.percentLabel(),
+                                onClick = { vm.selectGraphics(g) },
+                            )
+                        }
+                    }
+                }
+                SectionCard {
+                    Text(stringResource(R.string.fps_title), style = AppType.lg, color = AppTheme.colors.text)
+                    Row(horizontalArrangement = Arrangement.spacedBy(AppSpace.s8)) {
+                        FPS_CHOICES.forEach { value ->
+                            FilterChip(
+                                selected = value == fps,
+                                onClick = { vm.selectFps(value) },
+                                enabled = !applying,
+                                label = { Text(if (value == 0) stringResource(R.string.fps_default) else value.toString()) },
+                            )
+                        }
+                    }
                 }
             }
 
-            Text(stringResource(R.string.detail_last_log), style = AppType.lg, color = AppTheme.colors.text)
-            val log = lastLog
-            Text(
-                text = if (log == null) stringResource(R.string.detail_no_log)
-                else "$ ${log.command}\nexit ${log.exitCode}\n${log.output}",
-                style = AppType.mono,
-                color = AppTheme.colors.text,
-                modifier = Modifier.fillMaxWidth().padding(AppSpace.s12),
-            )
+            message?.let { m ->
+                SectionCard {
+                    Text(
+                        stringResource(m.res),
+                        style = AppType.base,
+                        color = if (m.isError) AppTheme.colors.danger else AppTheme.colors.success,
+                    )
+                    m.detail?.let { Text(it, style = AppType.mono, color = AppTheme.colors.textMuted) }
+                }
+            }
+
+            TextButton(onClick = { advanced = !advanced }) {
+                Text(stringResource(if (advanced) R.string.detail_advanced_hide else R.string.detail_advanced_show))
+            }
+            if (advanced) {
+                OutlinedButton(onClick = vm::diagnose, enabled = ready && !applying, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.detail_diagnose))
+                }
+                diagnosis?.let {
+                    SelectionContainer {
+                        Text(it, style = AppType.mono, color = AppTheme.colors.text, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+                Text(stringResource(R.string.detail_last_log), style = AppType.lg, color = AppTheme.colors.text)
+                val log = lastLog
+                SelectionContainer {
+                    Text(
+                        text = if (log == null) stringResource(R.string.detail_no_log)
+                        else "$ ${log.command}\nexit ${log.exitCode}\n${log.output}",
+                        style = AppType.mono,
+                        color = AppTheme.colors.text,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
     }
 }

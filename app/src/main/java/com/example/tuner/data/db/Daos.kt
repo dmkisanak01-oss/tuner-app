@@ -12,13 +12,17 @@ interface GameEntryDao {
     @Query(
         """
         SELECT e.package_name AS packageName, e.label AS label, e.is_pinned AS isPinned,
-               p.tune_enabled AS tuneEnabled, p.game_mode AS gameMode, p.last_apply_status AS lastApplyStatus
+               p.tune_enabled AS tuneEnabled, p.game_mode AS gameMode, p.graphics_mode AS graphicsMode,
+               p.fps_cap AS fpsCap, p.last_apply_status AS lastApplyStatus
         FROM game_entry e LEFT JOIN game_profile p ON p.package_name = e.package_name
         WHERE e.is_installed = 1
         ORDER BY e.is_pinned DESC, e.label COLLATE NOCASE
         """,
     )
     fun observeRows(): Flow<List<GameRow>>
+
+    @Query("UPDATE game_entry SET is_pinned = :pinned, updated_at = :now WHERE package_name = :pkg")
+    suspend fun setPinned(pkg: String, pinned: Boolean, now: Long)
 
     @Query("SELECT label FROM game_entry WHERE package_name = :pkg")
     fun observeLabel(pkg: String): Flow<String?>
